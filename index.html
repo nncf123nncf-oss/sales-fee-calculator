@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>販売手数料計算機</title>
+  <style>
+    :root {
+      --bg: #FBE4EA;
+      --surface: #FFFFFF;
+      --text: #3A2530;
+      --muted: #7A5A66;
+      --accent: #C2436B;
+      --danger: #D93025;
+      --border: #F0D2DC;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(100%, 520px);
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    header { margin-bottom: 24px; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    .lead, .note { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .mode-switch, .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .mode-switch { margin-bottom: 16px; }
+
+    button, input { font: inherit; }
+
+    button {
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      padding: 8px 12px;
+    }
+
+    button[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #FFFFFF;
+      font-weight: 700;
+    }
+
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid rgba(194, 67, 107, .32);
+      outline-offset: 2px;
+    }
+
+    .calculator, .result {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      padding: 16px;
+    }
+
+    .field { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 16px;
+      padding: 8px 12px;
+    }
+
+    .preset-label { margin: 0 0 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
+    .preset { min-width: 64px; }
+
+    .error {
+      min-height: 24px;
+      margin: 8px 0 16px;
+      color: var(--danger);
+      font-size: 14px;
+    }
+
+    .error:empty { display: none; }
+
+    .result { margin-bottom: 16px; }
+    .result-label { margin: 0 0 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
+    .amount {
+      overflow-wrap: anywhere;
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    .breakdown { margin: 0; color: var(--muted); font-size: 14px; }
+    .note { padding: 0 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>販売手数料計算機</h1>
+      <p class="lead">販売価格と手数料率を入れると、手取り額がすぐわかります</p>
+    </header>
+
+    <div class="mode-switch" aria-label="計算モード">
+      <button type="button" class="mode-button" data-mode="takehome" aria-pressed="true">価格から手取りを計算</button>
+      <button type="button" class="mode-button" data-mode="price" aria-pressed="false">手取りから価格を逆算</button>
+    </div>
+
+    <section class="calculator" aria-label="計算フォーム">
+      <div class="field">
+        <label for="amount" id="amount-label">販売価格（税込）</label>
+        <input id="amount" type="number" inputmode="decimal" min="0" step="1" placeholder="例：3000" aria-describedby="amount-unit">
+        <span id="amount-unit" hidden>円</span>
+      </div>
+      <div class="field">
+        <label for="fee">手数料率（%）</label>
+        <input id="fee" type="number" inputmode="decimal" min="0" max="99.9" step="0.1" placeholder="例：10">
+      </div>
+      <p class="preset-label">よく使う手数料率</p>
+      <div class="presets" aria-label="手数料率のプリセット">
+        <button class="preset" type="button" data-rate="10">10%</button>
+        <button class="preset" type="button" data-rate="15">15%</button>
+        <button class="preset" type="button" data-rate="20">20%</button>
+      </div>
+    </section>
+
+    <p class="error" id="error" role="alert" aria-live="polite"></p>
+
+    <section class="result" aria-live="polite" aria-atomic="true">
+      <p class="result-label" id="result-label">手取り額</p>
+      <p class="amount" id="result-amount">—</p>
+      <p class="breakdown" id="breakdown">販売価格と手数料率を入力してください</p>
+    </section>
+
+    <p class="note">※プリセットの手数料率は目安です。各サービスの最新の料率をご確認ください。</p>
+  </main>
+
+  <script>
+    const amountInput = document.querySelector('#amount');
+    const feeInput = document.querySelector('#fee');
+    const amountLabel = document.querySelector('#amount-label');
+    const error = document.querySelector('#error');
+    const resultLabel = document.querySelector('#result-label');
+    const resultAmount = document.querySelector('#result-amount');
+    const breakdown = document.querySelector('#breakdown');
+    const yen = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 0 });
+    let mode = 'takehome';
+    let touched = false;
+
+    function formatYen(value) {
+      return `${yen.format(Math.round(value))}円`;
+    }
+
+    function setEmptyResult() {
+      resultAmount.textContent = '—';
+      breakdown.textContent = '販売価格と手数料率を入力してください';
+    }
+
+    function calculate() {
+      const amount = Number(amountInput.value);
+      const fee = Number(feeInput.value);
+      const amountMissing = amountInput.value.trim() === '';
+      const feeMissing = feeInput.value.trim() === '';
+
+      if (amountMissing || feeMissing) {
+        error.textContent = touched ? '金額と手数料率の両方を入力してください。' : '';
+        setEmptyResult();
+        return;
+      }
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(fee) || fee <= 0 || fee >= 100) {
+        error.textContent = '金額は0より大きく、手数料率は0より大きく100未満で入力してください。';
+        setEmptyResult();
+        return;
+      }
+
+      error.textContent = '';
+      const rate = fee / 100;
+      if (mode === 'takehome') {
+        const feeAmount = amount * rate;
+        const takehome = amount - feeAmount;
+        resultAmount.textContent = formatYen(takehome);
+        breakdown.textContent = `手数料：${formatYen(feeAmount)}`;
+      } else {
+        const price = amount / (1 - rate);
+        const feeAmount = price - amount;
+        resultAmount.textContent = formatYen(price);
+        breakdown.textContent = `手数料：${formatYen(feeAmount)}／目標手取り：${formatYen(amount)}`;
+      }
+    }
+
+    document.querySelectorAll('.mode-button').forEach((button) => {
+      button.addEventListener('click', () => {
+        mode = button.dataset.mode;
+        document.querySelectorAll('.mode-button').forEach((item) => {
+          item.setAttribute('aria-pressed', String(item === button));
+        });
+        amountLabel.textContent = mode === 'takehome' ? '販売価格（税込）' : '目標の手取り額';
+        amountInput.placeholder = mode === 'takehome' ? '例：3000' : '例：2700';
+        resultLabel.textContent = mode === 'takehome' ? '手取り額' : '必要な販売価格';
+        calculate();
+      });
+    });
+
+    [amountInput, feeInput].forEach((input) => input.addEventListener('input', () => {
+      touched = true;
+      calculate();
+    }));
+    document.querySelectorAll('.preset').forEach((button) => {
+      button.addEventListener('click', () => {
+        feeInput.value = button.dataset.rate;
+        touched = true;
+        calculate();
+        feeInput.focus();
+      });
+    });
+  </script>
+</body>
+</html>
